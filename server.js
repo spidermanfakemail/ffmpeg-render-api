@@ -4,18 +4,21 @@ const fetch = require("node-fetch");
 const fs = require("fs");
 const { exec } = require("child_process");
 const path = require("path");
-const app = express();
 
+const app = express();
 app.use(bodyParser.json({ limit: "100mb" }));
 
 app.post("/render", async (req, res) => {
   const { imageUrl, audioUrl, quoteText } = req.body;
+
   const id = Date.now();
   const imagePath = `image-${id}.jpg`;
   const audioPath = `audio-${id}.mp3`;
-  const videoPath = `video-${id}.mp4`;
+  const filename = `video-${id}.mp4`;
+  const videoPath = filename;
 
   try {
+    // Helper to download media
     const download = async (url, output) => {
       const resp = await fetch(url);
       const buf = await resp.buffer();
@@ -29,19 +32,26 @@ app.post("/render", async (req, res) => {
 
     exec(cmd, (err, stdout, stderr) => {
       if (err) {
-        console.error(stderr);
-        return res.status(500).send("FFmpeg render failed");
+        console.error("FFmpeg error:", stderr);
+        return res.status(500).json({ error: "FFmpeg render failed" });
       }
-      const filename = `video-${id}.mp4`;
-      res.json({ message: "Rendered", videoUrl: `https://ffmpeg-render-api-zuz9.onrender.com/video/${filename}'});
+
+      // Respond with final video URL
+      res.json({
+        message: "Rendered",
+        videoUrl: `https://ffmpeg-render-api-zuz9.onrender.com/video/${filename}`
+      });
     });
   } catch (e) {
-    console.error(e);
-    res.status(500).send("Server error");
+    console.error("Server error:", e);
+    res.status(500).json({ error: "Server error", details: e.message });
   }
 });
 
+// Serve the generated videos
 app.use("/video", express.static(path.join(__dirname)));
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Listening on port ${port}`));
+app.listen(port, () => {
+  console.log(`Listening on port ${port}`);
+});

@@ -40,4 +40,17 @@ app.post("/render", async (req, res) => {
     exec(ffmpegCmd, (err, stdout, stderr) => {
       if (err) {
         console.error("FFmpeg error:", stderr);
-        return
+        return res.status(500).send("FFmpeg render failed.");
+      }
+      res.json({ message: "Rendered", videoUrl: `/video/${output}` });
+    });
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+app.use("/video", express.static(path.join(__dirname)));
+
+const port = process.env.PORT || 10000;
+app.listen(port, () => console.log(`✅ Server listening on port ${port}`));

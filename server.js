@@ -32,6 +32,7 @@ app.post("/render", async (req, res) => {
         console.error(stderr);
         return res.status(500).send("FFmpeg render failed");
       }
+      const filename = `video-${id}.mp4`;
       res.json({ message: "Rendered", videoUrl: `https://ffmpeg-render-api-zuz9.onrender.com/video/${filename}'});
     });
   } catch (e) {

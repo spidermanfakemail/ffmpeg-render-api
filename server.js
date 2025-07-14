@@ -9,26 +9,36 @@ const app = express();
 app.use(bodyParser.json({ limit: "100mb" }));
 
 app.post("/render", async (req, res) => {
-  const { imageUrl, audioUrl, quoteText } = req.body;
-
+  const { videoUrls, audioUrl, quoteText } = req.body;
   const id = Date.now();
-  const imagePath = `image-${id}.jpg`;
   const audioPath = `audio-${id}.mp3`;
-  const filename = `video-${id}.mp4`;
-  const videoPath = filename;
+  const concatListPath = `concat-${id}.txt`;
+  const outputFilename = `video-${id}.mp4`;
 
   try {
-    // Helper to download media
+    // Download audio
     const download = async (url, output) => {
       const resp = await fetch(url);
       const buf = await resp.buffer();
       fs.writeFileSync(output, buf);
     };
 
-    await download(imageUrl, imagePath);
     await download(audioUrl, audioPath);
 
-    const cmd = `ffmpeg -y -loop 1 -i ${imagePath} -i ${audioPath} -vf "drawtext=text='${quoteText}':fontcolor=white:fontsize=24:x=(w-text_w)/2:y=h-60" -shortest -t 60 -preset veryfast -movflags +faststart ${videoPath}`;
+    // Download and prepare video files
+    const videoFiles = [];
+    for (let i = 0; i < videoUrls.length; i++) {
+      const filePath = `vid${i}-${id}.mp4`;
+      await download(videoUrls[i], filePath);
+      videoFiles.push(filePath);
+    }
+
+    // Create concat file for FFmpeg
+    const concatText = videoFiles.map(v => `file '${v}'`).join("\n");
+    fs.writeFileSync(concatListPath, concatText);
+
+    // FFmpeg command
+    const cmd = `ffmpeg -y -f concat -safe 0 -i ${concatListPath} -i ${audioPath} -vf "drawtext=text='${quoteText.replace(/'/g, "\\'")}':fontcolor=white:fontsize=32:box=1:boxcolor=black@0.5:boxborderw=10:x=(w-text_w)/2:y=(h-text_h)/2" -shortest -preset veryfast -movflags +faststart ${outputFilename}`;
 
     exec(cmd, (err, stdout, stderr) => {
       if (err) {
@@ -36,10 +46,9 @@ app.post("/render", async (req, res) => {
         return res.status(500).json({ error: "FFmpeg render failed" });
       }
 
-      // Respond with final video URL
       res.json({
         message: "Rendered",
-        videoUrl: `https://ffmpeg-render-api-zuz9.onrender.com/video/${filename}`
+        videoUrl: `https://ffmpeg-render-api-zuz9.onrender.com/video/${outputFilename}`
       });
     });
   } catch (e) {
@@ -48,10 +57,7 @@ app.post("/render", async (req, res) => {
   }
 });
 
-// Serve the generated videos
 app.use("/video", express.static(path.join(__dirname)));
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
-});
+app.listen(port, () => console.log(`Listening on port ${port}`));
